@@ -1,4 +1,4 @@
-package com.fudn.inventory_service;
+package com.fudn.inventoryservice;
 
 import org.springframework.boot.SpringApplication;
 
