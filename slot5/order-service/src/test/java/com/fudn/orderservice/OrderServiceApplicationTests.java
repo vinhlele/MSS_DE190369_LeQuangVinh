@@ -1,4 +1,4 @@
-package com.fudn.order_service;
+package com.fudn.orderservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

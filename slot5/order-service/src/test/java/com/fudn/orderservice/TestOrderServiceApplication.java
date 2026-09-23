@@ -1,4 +1,4 @@
-package com.fudn.order_service;
+package com.fudn.orderservice;
 
 import org.springframework.boot.SpringApplication;
 
