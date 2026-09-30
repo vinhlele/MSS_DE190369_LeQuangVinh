@@ -5,10 +5,8 @@ import io.restassured.RestAssured;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.core.env.Environment;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.testcontainers.mysql.MySQLContainer;
 import org.wiremock.spring.ConfigureWireMock;
@@ -19,20 +17,14 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
-)
-@EnableWireMock(
-        @ConfigureWireMock(
-                baseUrlProperties = "inventory.url",
-                port = 0
-        )
-)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// TODO 3.9: khoi dong WireMock (port ngau nhien) va ghi URL cua no vao property inventory.url
+@EnableWireMock(@ConfigureWireMock(baseUrlProperties = "inventory.url"))
 class OrderServiceApplicationTests {
 
+    // Testcontainers 2.x: package org.testcontainers.mysql, khong con generic <?>
     @ServiceConnection
-    static MySQLContainer mySQLContainer =
-            new MySQLContainer("mysql:8.3.0");
+    static MySQLContainer mySQLContainer = new MySQLContainer("mysql:8.3.0");
 
     static {
         mySQLContainer.start();
@@ -41,42 +33,24 @@ class OrderServiceApplicationTests {
     @LocalServerPort
     private Integer port;
 
-    @Autowired
-    private Environment environment;
-
     @BeforeEach
     void setup() {
         RestAssured.baseURI = "http://localhost";
         RestAssured.port = port;
-
-        System.out.println("======================================");
-        System.out.println("ORDER SERVICE PORT = " + port);
-        System.out.println(
-                "INVENTORY URL      = "
-                        + environment.getProperty("inventory.url")
-        );
-        System.out.println("======================================");
     }
 
     @Test
     void shouldSubmitOrder() {
-
         String submitOrderJson = """
                 {
-                    "skuCode": "iphone_15",
-                    "price": 1000,
-                    "quantity": 1
+                     "skuCode": "iphone_15",
+                     "price": 1000,
+                     "quantity": 1
                 }
                 """;
+        InventoryStubs.stubInventoryCall("iphone_15", 1);
 
-        // Inventory giả lập trả true
-        InventoryStubs.stubInventoryCall(
-                "iphone_15",
-                1
-        );
-
-        String responseBody = RestAssured
-                .given()
+        String responseBody = RestAssured.given()
                 .contentType("application/json")
                 .body(submitOrderJson)
                 .when()
@@ -84,44 +58,25 @@ class OrderServiceApplicationTests {
                 .then()
                 .log().all()
                 .statusCode(201)
-                .extract()
-                .body()
-                .asString();
+                .extract().body().asString();
 
-        assertThat(
-                responseBody,
-                Matchers.is("Order Placed Successfully")
-        );
-
-        // Verify Order Service thực sự gọi Inventory
-        verify(
-                getRequestedFor(
-                        urlEqualTo(
-                                "/api/inventory?skuCode=iphone_15&quantity=1"
-                        )
-                )
-        );
+        assertThat(responseBody, Matchers.is("Order Placed Successfully"));
+        // Xac nhan Order Service da goi dung URL sang Inventory
+        verify(getRequestedFor(urlEqualTo("/api/inventory?skuCode=iphone_15&quantity=1")));
     }
 
     @Test
     void shouldFailOrderWhenProductIsNotInStock() {
-
         String submitOrderJson = """
                 {
-                    "skuCode": "iphone_15",
-                    "price": 1000,
-                    "quantity": 1000
+                     "skuCode": "iphone_15",
+                     "price": 1000,
+                     "quantity": 1000
                 }
                 """;
+        InventoryStubs.stubInventoryOutOfStock("iphone_15", 1000);
 
-        // Inventory giả lập trả false
-        InventoryStubs.stubInventoryOutOfStock(
-                "iphone_15",
-                1000
-        );
-
-        RestAssured
-                .given()
+        RestAssured.given()
                 .contentType("application/json")
                 .body(submitOrderJson)
                 .when()
