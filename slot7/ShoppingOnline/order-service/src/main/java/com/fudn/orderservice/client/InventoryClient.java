@@ -1,10 +1,11 @@
 package com.fudn.orderservice.client;
 
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @FeignClient(
-        value = "inventory",
+        name = "inventory-service",
         url = "${inventory.url}"
 )
 public interface InventoryClient {
