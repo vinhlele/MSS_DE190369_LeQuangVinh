@@ -20,25 +20,43 @@
     </properties>
 
     <dependencies>
-        <!-- Actuator: /actuator/health, metrics -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-        <!-- Gateway Server Web MVC (Servlet-based) - ten moi tu Spring Cloud 2025.x -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway-server-webmvc</artifactId>
         </dependency>
-        <!-- Resilience4J: Circuit Breaker (dung o Phan 5) -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
         </dependency>
 
+        <!-- TODO 4.8: OAuth2 Resource Server - Boot 4 doi ten starter (keo theo spring-security) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
+            <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <!-- ===== TEST ===== -->
+        <!-- MockMvc + @AutoConfigureMockMvc (Boot 4, da gom spring-boot-starter-test) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- spring-security-test: jwt() post-processor cho MockMvc -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- WireMock gia lap service dich khi test Gateway -->
+        <dependency>
+            <groupId>org.wiremock.integrations</groupId>
+            <artifactId>wiremock-spring-boot</artifactId>
+            <version>4.2.3</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
