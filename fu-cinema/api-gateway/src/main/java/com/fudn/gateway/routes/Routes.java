@@ -1,5 +1,6 @@
 package com.fudn.gateway.routes;
 
+import com.fudn.gateway.filter.UserHeaderFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +17,7 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
  * - customer-service (8081): /api/auth/**, /api/customers/**
  * - movie-service (8082): /api/movies/**, /api/genres/**, /api/rooms/**, /api/showtimes/**
  * - booking-service (8083): /api/bookings/**, /api/reports/**
+ * - F10.4: filter UserHeaderFilter loai bo header gia mao va chuyen tiep identity hop le tu JWT.
  */
 @Configuration(proxyBeanMethods = false)
 public class Routes {
@@ -29,11 +31,18 @@ public class Routes {
     @Value("${services.booking.url:http://localhost:8083}")
     private String bookingServiceUrl;
 
+    private final UserHeaderFilter userHeaderFilter;
+
+    public Routes(UserHeaderFilter userHeaderFilter) {
+        this.userHeaderFilter = userHeaderFilter;
+    }
+
     @Bean
     public RouterFunction<ServerResponse> customerAuthRoute() {
         return route("customer_auth_route")
                 .route(RequestPredicates.path("/api/auth/**"), http())
                 .before(uri(customerServiceUrl))
+                .filter(userHeaderFilter)
                 .build();
     }
 
@@ -42,6 +51,7 @@ public class Routes {
         return route("customer_service_route")
                 .route(RequestPredicates.path("/api/customers/**"), http())
                 .before(uri(customerServiceUrl))
+                .filter(userHeaderFilter)
                 .build();
     }
 
@@ -53,6 +63,7 @@ public class Routes {
                         .or(RequestPredicates.path("/api/rooms/**"))
                         .or(RequestPredicates.path("/api/showtimes/**")), http())
                 .before(uri(movieServiceUrl))
+                .filter(userHeaderFilter)
                 .build();
     }
 
@@ -62,6 +73,7 @@ public class Routes {
                 .route(RequestPredicates.path("/api/bookings/**")
                         .or(RequestPredicates.path("/api/reports/**")), http())
                 .before(uri(bookingServiceUrl))
+                .filter(userHeaderFilter)
                 .build();
     }
 }
