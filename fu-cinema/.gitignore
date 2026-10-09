@@ -5,3 +5,6 @@ docker/
 .vscode/
 *.log
 .DS_Store
+
+*.tmp
+~$*
