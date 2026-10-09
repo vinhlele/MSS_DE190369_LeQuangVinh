@@ -2,9 +2,11 @@ package com.fudn.customerservice;
 
 import com.fudn.customerservice.config.PasswordConfig;
 import com.fudn.customerservice.controller.AuthController;
+import com.fudn.customerservice.dto.ChangePasswordRequest;
 import com.fudn.customerservice.dto.CustomerResponse;
 import com.fudn.customerservice.dto.LoginRequest;
 import com.fudn.customerservice.dto.LoginResponse;
+import com.fudn.customerservice.dto.ProfileUpdateRequest;
 import com.fudn.customerservice.dto.RegisterRequest;
 import com.fudn.customerservice.exception.ApiException;
 import com.fudn.customerservice.exception.GlobalExceptionHandler;
@@ -34,6 +36,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -155,6 +158,103 @@ class CustomerServiceApplicationTests {
         ApiException ex = assertThrows(ApiException.class, () -> customerService.register(req));
         assertEquals(HttpStatus.CONFLICT, ex.getStatus());
         assertTrue(ex.getMessage().contains("Email is already in use"));
+    }
+
+    @Test
+    void customerService_getProfile_success() {
+        Customer customer = Customer.builder()
+                .customerId(1L)
+                .customerName("Nguyễn Văn An")
+                .telephone("0905123456")
+                .email("an@gmail.com")
+                .customerBirthday(LocalDate.of(2002, 5, 10))
+                .customerStatus(CustomerStatus.ACTIVE)
+                .password("encoded_pass")
+                .build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+
+        CustomerResponse res = customerService.getProfile(1L);
+        assertEquals(1L, res.customerId());
+        assertEquals("Nguyễn Văn An", res.customerName());
+        assertEquals("an@gmail.com", res.email());
+    }
+
+    @Test
+    void customerService_getProfile_notFound() {
+        when(customerRepository.findById(999L)).thenReturn(Optional.empty());
+
+        ApiException ex = assertThrows(ApiException.class, () -> customerService.getProfile(999L));
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+    }
+
+    @Test
+    void customerService_updateProfile_success() {
+        Customer customer = Customer.builder()
+                .customerId(2L)
+                .customerName("Trần Thị Bình")
+                .telephone("0914234567")
+                .email("binh@gmail.com")
+                .customerBirthday(LocalDate.of(2003, 8, 21))
+                .customerStatus(CustomerStatus.ACTIVE)
+                .build();
+        when(customerRepository.findById(2L)).thenReturn(Optional.of(customer));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProfileUpdateRequest updateReq = new ProfileUpdateRequest(
+                "Trần Thị Bình Updated",
+                "0919999999",
+                LocalDate.of(2003, 8, 22));
+
+        CustomerResponse res = customerService.updateProfile(2L, updateReq);
+        assertEquals("Trần Thị Bình Updated", res.customerName());
+        assertEquals("0919999999", res.telephone());
+        assertEquals(LocalDate.of(2003, 8, 22), res.customerBirthday());
+    }
+
+    @Test
+    void customerService_changePassword_success() {
+        String oldRaw = "oldPass123";
+        String newRaw = "newPass456";
+        Customer customer = Customer.builder()
+                .customerId(1L)
+                .customerName("Nguyễn Văn An")
+                .email("an@gmail.com")
+                .password(passwordEncoder.encode(oldRaw))
+                .build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+
+        customerService.changePassword(1L, new ChangePasswordRequest(oldRaw, newRaw));
+
+        assertTrue(passwordEncoder.matches(newRaw, customer.getPassword()));
+        verify(customerRepository).save(customer);
+    }
+
+    @Test
+    void customerService_changePassword_wrongOldPassword() {
+        Customer customer = Customer.builder()
+                .customerId(1L)
+                .password(passwordEncoder.encode("correctOld"))
+                .build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+
+        ApiException ex = assertThrows(ApiException.class, () ->
+                customerService.changePassword(1L, new ChangePasswordRequest("wrongOld", "newPass456")));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertEquals("Old password is incorrect", ex.getMessage());
+    }
+
+    @Test
+    void customerService_changePassword_samePassword() {
+        Customer customer = Customer.builder()
+                .customerId(1L)
+                .password(passwordEncoder.encode("samePass123"))
+                .build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+
+        ApiException ex = assertThrows(ApiException.class, () ->
+                customerService.changePassword(1L, new ChangePasswordRequest("samePass123", "samePass123")));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertEquals("New password must be different from the old password", ex.getMessage());
     }
 
     @Test
