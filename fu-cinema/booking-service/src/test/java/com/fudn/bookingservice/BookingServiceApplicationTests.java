@@ -21,8 +21,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -205,6 +204,59 @@ class BookingServiceApplicationTests {
                 .thenThrow(ApiException.forbidden("You can only access your own bookings"));
 
         mockMvc.perform(get("/api/bookings/100")
+                        .header("X-User-Id", 2L))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+    }
+
+    // ---------- TODO 8.4 Tests ----------
+
+    @Test
+    void cancelBooking_delete_success() throws Exception {
+        BookingResponse response = new BookingResponse(100L, LocalDateTime.now(), 1L,
+                new BigDecimal("100000"), BookingStatus.CANCELLED, List.of());
+
+        when(bookingService.cancel(eq(100L), eq(1L), isNull())).thenReturn(response);
+
+        mockMvc.perform(delete("/api/bookings/100")
+                        .header("X-User-Id", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bookingId").value(100))
+                .andExpect(jsonPath("$.bookingStatus").value("CANCELLED"));
+    }
+
+    @Test
+    void cancelBooking_put_success() throws Exception {
+        BookingResponse response = new BookingResponse(100L, LocalDateTime.now(), 1L,
+                new BigDecimal("100000"), BookingStatus.CANCELLED, List.of());
+
+        when(bookingService.cancel(eq(100L), eq(1L), isNull())).thenReturn(response);
+
+        mockMvc.perform(put("/api/bookings/100/cancel")
+                        .header("X-User-Id", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bookingId").value(100))
+                .andExpect(jsonPath("$.bookingStatus").value("CANCELLED"));
+    }
+
+    @Test
+    void cancelBooking_tooLate_returnsBadRequest() throws Exception {
+        when(bookingService.cancel(eq(100L), eq(1L), isNull()))
+                .thenThrow(ApiException.badRequest("Bookings can only be cancelled at least 2 hours before showtime starts"));
+
+        mockMvc.perform(delete("/api/bookings/100")
+                        .header("X-User-Id", 1L))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Bookings can only be cancelled at least 2 hours before showtime starts"));
+    }
+
+    @Test
+    void cancelBooking_forbidden_returnsForbidden() throws Exception {
+        when(bookingService.cancel(eq(100L), eq(2L), isNull()))
+                .thenThrow(ApiException.forbidden("You can only cancel your own bookings"));
+
+        mockMvc.perform(delete("/api/bookings/100")
                         .header("X-User-Id", 2L))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403));

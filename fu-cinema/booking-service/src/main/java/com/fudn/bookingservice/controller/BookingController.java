@@ -71,4 +71,26 @@ public class BookingController {
             @RequestHeader(value = USER_ROLE, required = false) String role) {
         return bookingService.getById(id, userId, role);
     }
+
+    /**
+     * TODO 8.4: Huy dat ve theo ID (DELETE /api/bookings/{id}).
+     */
+    @DeleteMapping("/{id}")
+    public BookingResponse cancel(
+            @PathVariable Long id,
+            @RequestHeader(USER_ID) Long userId,
+            @RequestHeader(value = USER_ROLE, required = false) String role) {
+        return bookingService.cancel(id, userId, role);
+    }
+
+    /**
+     * TODO 8.4: Huy dat ve theo ID (PUT /api/bookings/{id}/cancel).
+     */
+    @PutMapping("/{id}/cancel")
+    public BookingResponse cancelPut(
+            @PathVariable Long id,
+            @RequestHeader(USER_ID) Long userId,
+            @RequestHeader(value = USER_ROLE, required = false) String role) {
+        return bookingService.cancel(id, userId, role);
+    }
 }
