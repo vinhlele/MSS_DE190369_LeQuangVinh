@@ -26,6 +26,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -71,6 +72,27 @@ class CustomerServiceApplicationTests {
                 .load();
         MigrateResult result = flyway.migrate();
         assertTrue(result.success);
+    }
+
+    @Test
+    void customerEntity_shouldMapCorrectly() {
+        Customer customer = Customer.builder()
+                .customerId(1L)
+                .customerName("Nguyễn Văn An")
+                .telephone("0905123456")
+                .email("an@gmail.com")
+                .customerBirthday(LocalDate.of(2002, 5, 10))
+                .customerStatus(CustomerStatus.ACTIVE)
+                .password("$2a$10$dmoDdVpWYdqLarqBfkYQteoq1YORLC5LLMd55bpomZ3EarS/vtjtW")
+                .build();
+
+        assertEquals(1L, customer.getCustomerId());
+        assertEquals("Nguyễn Văn An", customer.getCustomerName());
+        assertEquals("0905123456", customer.getTelephone());
+        assertEquals("an@gmail.com", customer.getEmail());
+        assertEquals(LocalDate.of(2002, 5, 10), customer.getCustomerBirthday());
+        assertEquals(CustomerStatus.ACTIVE, customer.getCustomerStatus());
+        assertEquals("$2a$10$dmoDdVpWYdqLarqBfkYQteoq1YORLC5LLMd55bpomZ3EarS/vtjtW", customer.getPassword());
     }
 
     @Test

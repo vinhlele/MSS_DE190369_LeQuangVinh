@@ -1,14 +1,13 @@
 package com.fudn.customerservice.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDate;
 
+/**
+ * JPA Entity mapping bảng 'customer' trong SQL Server (TODO 2.2).
+ */
 @Entity
 @Table(name = "customer")
 @Getter
@@ -20,22 +19,25 @@ public class Customer {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "customer_id")
     private Long customerId;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "customer_name", nullable = false, length = 100)
     private String customerName;
 
+    @Column(name = "telephone", length = 15)
     private String telephone;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
 
+    @Column(name = "customer_birthday")
     private LocalDate customerBirthday;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "customer_status", nullable = false, length = 20)
     private CustomerStatus customerStatus;
 
-    @Column(nullable = false)
+    @Column(name = "password", nullable = false, length = 100)
     private String password;
 }
