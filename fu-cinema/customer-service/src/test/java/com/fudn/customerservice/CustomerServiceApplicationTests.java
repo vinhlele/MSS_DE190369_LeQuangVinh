@@ -3,12 +3,7 @@ package com.fudn.customerservice;
 import com.fudn.customerservice.config.PasswordConfig;
 import com.fudn.customerservice.controller.AuthController;
 import com.fudn.customerservice.controller.CustomerController;
-import com.fudn.customerservice.dto.ChangePasswordRequest;
-import com.fudn.customerservice.dto.CustomerResponse;
-import com.fudn.customerservice.dto.LoginRequest;
-import com.fudn.customerservice.dto.LoginResponse;
-import com.fudn.customerservice.dto.ProfileUpdateRequest;
-import com.fudn.customerservice.dto.RegisterRequest;
+import com.fudn.customerservice.dto.*;
 import com.fudn.customerservice.exception.ApiException;
 import com.fudn.customerservice.exception.GlobalExceptionHandler;
 import com.fudn.customerservice.model.Customer;
@@ -24,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -33,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -258,6 +255,100 @@ class CustomerServiceApplicationTests {
                 customerService.changePassword(1L, new ChangePasswordRequest("samePass123", "samePass123")));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
         assertEquals("New password must be different from the old password", ex.getMessage());
+    }
+
+    @Test
+    void customerService_adminSearch_all() {
+        Customer c1 = Customer.builder().customerId(1L).customerName("A").email("a@a.com").build();
+        Customer c2 = Customer.builder().customerId(2L).customerName("B").email("b@b.com").build();
+        when(customerRepository.findAll(any(Sort.class))).thenReturn(List.of(c1, c2));
+
+        List<CustomerResponse> result = customerService.search("");
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void customerService_adminSearch_keyword() {
+        Customer c1 = Customer.builder().customerId(1L).customerName("Nguyễn Văn An").email("an@gmail.com").build();
+        when(customerRepository.findByCustomerNameContainingIgnoreCaseOrEmailContainingIgnoreCaseOrderByCustomerIdAsc("an", "an"))
+                .thenReturn(List.of(c1));
+
+        List<CustomerResponse> result = customerService.search("an");
+        assertEquals(1, result.size());
+        assertEquals("Nguyễn Văn An", result.get(0).customerName());
+    }
+
+    @Test
+    void customerService_adminGetById_success() {
+        Customer c = Customer.builder().customerId(1L).customerName("An").email("an@gmail.com").build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(c));
+
+        CustomerResponse res = customerService.getById(1L);
+        assertEquals(1L, res.customerId());
+    }
+
+    @Test
+    void customerService_adminCreate_success() {
+        AdminCustomerRequest req = new AdminCustomerRequest(
+                "Admin Created", "0901234567", "created@gmail.com",
+                LocalDate.of(2000, 1, 1), CustomerStatus.ACTIVE, "adminPass123");
+
+        when(customerRepository.existsByEmailIgnoreCase("created@gmail.com")).thenReturn(false);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> {
+            Customer c = invocation.getArgument(0);
+            c.setCustomerId(88L);
+            return c;
+        });
+
+        CustomerResponse res = customerService.create(req);
+        assertEquals(88L, res.customerId());
+        assertEquals("Admin Created", res.customerName());
+        assertEquals("created@gmail.com", res.email());
+    }
+
+    @Test
+    void customerService_adminCreate_missingPassword_throwsBadRequest() {
+        AdminCustomerRequest req = new AdminCustomerRequest(
+                "Admin Created", "0901234567", "created@gmail.com",
+                LocalDate.of(2000, 1, 1), CustomerStatus.ACTIVE, "");
+
+        ApiException ex = assertThrows(ApiException.class, () -> customerService.create(req));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Password is required"));
+    }
+
+    @Test
+    void customerService_adminUpdate_success() {
+        Customer existing = Customer.builder().customerId(2L).email("old@gmail.com").password("oldHash").build();
+        when(customerRepository.findById(2L)).thenReturn(Optional.of(existing));
+        when(customerRepository.existsByEmailIgnoreCaseAndCustomerIdNot("new@gmail.com", 2L)).thenReturn(false);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AdminCustomerRequest req = new AdminCustomerRequest(
+                "Updated Name", "0911222333", "new@gmail.com",
+                LocalDate.of(1999, 1, 1), CustomerStatus.INACTIVE, "newPass789");
+
+        CustomerResponse res = customerService.update(2L, req);
+        assertEquals("Updated Name", res.customerName());
+        assertEquals("new@gmail.com", res.email());
+        assertEquals(CustomerStatus.INACTIVE, res.customerStatus());
+        assertTrue(passwordEncoder.matches("newPass789", existing.getPassword()));
+    }
+
+    @Test
+    void customerService_adminDelete_logicalDeletion_setsInactive() {
+        Customer existing = Customer.builder()
+                .customerId(1L)
+                .customerName("Nguyễn Văn An")
+                .email("an@gmail.com")
+                .customerStatus(CustomerStatus.ACTIVE)
+                .build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        customerService.delete(1L);
+
+        assertEquals(CustomerStatus.INACTIVE, existing.getCustomerStatus());
+        verify(customerRepository).save(existing);
     }
 
     @Test
