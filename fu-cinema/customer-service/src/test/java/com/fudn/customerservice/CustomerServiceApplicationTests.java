@@ -2,8 +2,10 @@ package com.fudn.customerservice;
 
 import com.fudn.customerservice.config.PasswordConfig;
 import com.fudn.customerservice.controller.AuthController;
+import com.fudn.customerservice.dto.CustomerResponse;
 import com.fudn.customerservice.dto.LoginRequest;
 import com.fudn.customerservice.dto.LoginResponse;
+import com.fudn.customerservice.dto.RegisterRequest;
 import com.fudn.customerservice.exception.ApiException;
 import com.fudn.customerservice.exception.GlobalExceptionHandler;
 import com.fudn.customerservice.model.Customer;
@@ -11,6 +13,7 @@ import com.fudn.customerservice.model.CustomerStatus;
 import com.fudn.customerservice.repository.CustomerRepository;
 import com.fudn.customerservice.security.JwtService;
 import com.fudn.customerservice.service.AuthService;
+import com.fudn.customerservice.service.CustomerService;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +33,7 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -44,6 +48,7 @@ class CustomerServiceApplicationTests {
     private PasswordEncoder passwordEncoder;
     private JwtService jwtService;
     private AuthService authService;
+    private CustomerService customerService;
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -53,6 +58,9 @@ class CustomerServiceApplicationTests {
         authService = new AuthService(customerRepository, passwordEncoder, jwtService);
         ReflectionTestUtils.setField(authService, "adminEmail", "admin@fucinema.com");
         ReflectionTestUtils.setField(authService, "adminPassword", "admin123");
+
+        customerService = new CustomerService(customerRepository, passwordEncoder);
+        ReflectionTestUtils.setField(customerService, "adminEmail", "admin@fucinema.com");
 
         mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(authService))
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -93,6 +101,60 @@ class CustomerServiceApplicationTests {
         assertEquals(LocalDate.of(2002, 5, 10), customer.getCustomerBirthday());
         assertEquals(CustomerStatus.ACTIVE, customer.getCustomerStatus());
         assertEquals("$2a$10$dmoDdVpWYdqLarqBfkYQteoq1YORLC5LLMd55bpomZ3EarS/vtjtW", customer.getPassword());
+    }
+
+    @Test
+    void customerService_register_success() {
+        RegisterRequest req = new RegisterRequest(
+                "Đỗ Nam Trung",
+                "0909999888",
+                "donamtrung@gmail.com",
+                LocalDate.of(1995, 6, 15),
+                "securepass123");
+
+        when(customerRepository.existsByEmailIgnoreCase("donamtrung@gmail.com")).thenReturn(false);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> {
+            Customer c = invocation.getArgument(0);
+            c.setCustomerId(50L);
+            return c;
+        });
+
+        CustomerResponse res = customerService.register(req);
+        assertEquals(50L, res.customerId());
+        assertEquals("Đỗ Nam Trung", res.customerName());
+        assertEquals("donamtrung@gmail.com", res.email());
+        assertEquals("0909999888", res.telephone());
+        assertEquals(CustomerStatus.ACTIVE, res.customerStatus());
+    }
+
+    @Test
+    void customerService_register_duplicateEmail_throwsConflict() {
+        RegisterRequest req = new RegisterRequest(
+                "Trùng Email",
+                "0901234567",
+                "an@gmail.com",
+                LocalDate.of(2000, 1, 1),
+                "password123");
+
+        when(customerRepository.existsByEmailIgnoreCase("an@gmail.com")).thenReturn(true);
+
+        ApiException ex = assertThrows(ApiException.class, () -> customerService.register(req));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Email is already in use"));
+    }
+
+    @Test
+    void customerService_register_adminEmail_throwsConflict() {
+        RegisterRequest req = new RegisterRequest(
+                "Fake Admin",
+                "0901234567",
+                "admin@fucinema.com",
+                LocalDate.of(2000, 1, 1),
+                "password123");
+
+        ApiException ex = assertThrows(ApiException.class, () -> customerService.register(req));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertTrue(ex.getMessage().contains("Email is already in use"));
     }
 
     @Test
