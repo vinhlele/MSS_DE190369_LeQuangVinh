@@ -1,9 +1,11 @@
 package com.fudn.customerservice;
 
 import com.fudn.customerservice.config.PasswordConfig;
+import com.fudn.customerservice.controller.AuthController;
 import com.fudn.customerservice.dto.LoginRequest;
 import com.fudn.customerservice.dto.LoginResponse;
 import com.fudn.customerservice.exception.ApiException;
+import com.fudn.customerservice.exception.GlobalExceptionHandler;
 import com.fudn.customerservice.model.Customer;
 import com.fudn.customerservice.model.CustomerStatus;
 import com.fudn.customerservice.repository.CustomerRepository;
@@ -15,15 +17,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerServiceApplicationTests {
@@ -34,6 +41,7 @@ class CustomerServiceApplicationTests {
     private PasswordEncoder passwordEncoder;
     private JwtService jwtService;
     private AuthService authService;
+    private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
@@ -42,6 +50,10 @@ class CustomerServiceApplicationTests {
         authService = new AuthService(customerRepository, passwordEncoder, jwtService);
         ReflectionTestUtils.setField(authService, "adminEmail", "admin@fucinema.com");
         ReflectionTestUtils.setField(authService, "adminPassword", "admin123");
+
+        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(authService))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
     }
 
     @Test
@@ -134,5 +146,38 @@ class CustomerServiceApplicationTests {
         ApiException ex = assertThrows(ApiException.class, () ->
                 authService.login(new LoginRequest("test@example.com", "wrongpass")));
         assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
+    }
+
+    @Test
+    void authController_login_success() throws Exception {
+        String json = "{\"email\":\"admin@fucinema.com\",\"password\":\"admin123\"}";
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("admin@fucinema.com"))
+                .andExpect(jsonPath("$.role").value("ADMIN"))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.accessToken").isNotEmpty());
+    }
+
+    @Test
+    void authController_login_invalidCredentials_returns401() throws Exception {
+        String json = "{\"email\":\"admin@fucinema.com\",\"password\":\"wrongpassword\"}";
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Invalid email or password"));
+    }
+
+    @Test
+    void authController_login_validationFailure_returns400() throws Exception {
+        String json = "{\"email\":\"\",\"password\":\"\"}";
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isBadRequest());
     }
 }
