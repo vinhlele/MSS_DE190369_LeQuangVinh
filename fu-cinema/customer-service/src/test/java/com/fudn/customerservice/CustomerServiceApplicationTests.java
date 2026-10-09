@@ -11,6 +11,8 @@ import com.fudn.customerservice.model.CustomerStatus;
 import com.fudn.customerservice.repository.CustomerRepository;
 import com.fudn.customerservice.security.JwtService;
 import com.fudn.customerservice.service.AuthService;
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,6 +60,17 @@ class CustomerServiceApplicationTests {
 
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void flyway_migration_shouldMigrateSuccessfully() {
+        Flyway flyway = Flyway.configure()
+                .dataSource("jdbc:sqlserver://localhost:1433;databaseName=cinema_customer;encrypt=true;trustServerCertificate=true",
+                        "sa", "Fucinema@2026")
+                .locations("classpath:db/migration")
+                .load();
+        MigrateResult result = flyway.migrate();
+        assertTrue(result.success);
     }
 
     @Test
