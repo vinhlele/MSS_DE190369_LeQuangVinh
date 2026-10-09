@@ -132,6 +132,44 @@ public class BookingService {
         return BookingResponse.from(findAccessible(bookingId, userId, role));
     }
 
+    // ======================= F8: BOOKING CANCELLATION =======================
+
+    // TODO 8.3: Huy dat ve theo quy tac nghiep vu
+    @Transactional
+    public BookingResponse cancel(Long bookingId, Long userId, String role) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> ApiException.notFound("Booking not found with id: " + bookingId));
+
+        boolean isAdmin = ROLE_ADMIN.equals(role);
+        if (!isAdmin && !booking.getCustomerId().equals(userId)) {
+            throw ApiException.forbidden("You can only cancel your own bookings");
+        }
+
+        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+            throw ApiException.badRequest("Booking is already cancelled");
+        }
+
+        // Customer phai huy truoc gio chieu it nhat 2 tieng
+        if (!isAdmin) {
+            LocalDateTime now = LocalDateTime.now();
+            for (BookingDetail detail : booking.getDetails()) {
+                LocalDateTime showtimeStart = detail.getShowtimeStart();
+                if (showtimeStart == null) {
+                    ShowtimeResponse st = fetchShowtime(detail.getShowtimeId());
+                    showtimeStart = st.startTime();
+                }
+                if (showtimeStart != null && !now.plusHours(2).isBefore(showtimeStart)) {
+                    throw ApiException.badRequest("Bookings can only be cancelled at least 2 hours before showtime starts");
+                }
+            }
+        }
+
+        booking.setBookingStatus(BookingStatus.CANCELLED);
+        Booking saved = bookingRepository.save(booking);
+        log.info("Booking {} cancelled by user {} (role {})", bookingId, userId, role);
+        return BookingResponse.from(saved);
+    }
+
     // ======================= HELPER =======================
 
     public ShowtimeResponse fetchShowtime(String showtimeId) {
