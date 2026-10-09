@@ -10,6 +10,7 @@ import com.fudn.movieservice.repository.ShowtimeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -20,11 +21,25 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ShowtimeService {
 
+    /** Gia tri khong trung voi _id nao -> dung khi tao moi (khong loai tru ban ghi nao) */
+    private static final String NO_EXCLUDE = "";
+
     private final ShowtimeRepository showtimeRepository;
     private final MovieRepository movieRepository;
     private final RoomRepository roomRepository;
     private final MovieService movieService;
     private final RoomService roomService;
+
+    // TODO 6.4: loc theo movieId va/hoac ngay chieu
+    public List<ShowtimeResponse> search(String movieId, LocalDate date) {
+        List<Showtime> showtimes = (movieId == null || movieId.isBlank())
+                ? showtimeRepository.findAllByOrderByStartTimeAsc()
+                : showtimeRepository.findByMovieIdOrderByStartTimeAsc(movieId);
+        List<Showtime> filtered = showtimes.stream()
+                .filter(s -> date == null || s.getStartTime().toLocalDate().equals(date))
+                .toList();
+        return toResponses(filtered);
+    }
 
     public ShowtimeResponse getById(String id) {
         Showtime s = find(id);
@@ -32,20 +47,9 @@ public class ShowtimeService {
     }
 
     public ShowtimeResponse create(ShowtimeRequest request) {
-        Movie movie = movieService.find(request.movieId());
-        CinemaRoom room = roomService.find(request.roomId());
-
-        LocalDateTime endTime = request.startTime().plusMinutes(movie.getDurationMinutes());
-
         Showtime showtime = new Showtime();
-        showtime.setMovieId(movie.getMovieId());
-        showtime.setRoomId(room.getRoomId());
-        showtime.setStartTime(request.startTime());
-        showtime.setEndTime(endTime);
-        showtime.setTicketPrice(request.ticketPrice());
         showtime.setShowtimeStatus(ShowtimeStatus.SCHEDULED);
-
-        return ShowtimeResponse.from(showtimeRepository.save(showtime), movie, room);
+        return apply(showtime, request, NO_EXCLUDE);
     }
 
     public ShowtimeResponse update(String id, ShowtimeRequest request) {
@@ -53,21 +57,10 @@ public class ShowtimeService {
         if (showtime.getShowtimeStatus() == ShowtimeStatus.CANCELLED) {
             throw ApiException.badRequest("Cannot update a cancelled showtime");
         }
-
-        Movie movie = movieService.find(request.movieId());
-        CinemaRoom room = roomService.find(request.roomId());
-
-        LocalDateTime endTime = request.startTime().plusMinutes(movie.getDurationMinutes());
-
-        showtime.setMovieId(movie.getMovieId());
-        showtime.setRoomId(room.getRoomId());
-        showtime.setStartTime(request.startTime());
-        showtime.setEndTime(endTime);
-        showtime.setTicketPrice(request.ticketPrice());
-
-        return ShowtimeResponse.from(showtimeRepository.save(showtime), movie, room);
+        return apply(showtime, request, id);
     }
 
+    // BR06: soft delete
     public void cancel(String id) {
         Showtime showtime = find(id);
         showtime.setShowtimeStatus(ShowtimeStatus.CANCELLED);
@@ -79,7 +72,42 @@ public class ShowtimeService {
                 .orElseThrow(() -> ApiException.notFound("Showtime not found with id: " + id));
     }
 
-    public List<ShowtimeResponse> toResponses(List<Showtime> showtimes) {
+    private ShowtimeResponse apply(Showtime showtime, ShowtimeRequest request, String excludeId) {
+        Movie movie = movieService.find(request.movieId());        // BR15
+        CinemaRoom room = roomService.find(request.roomId());      // BR15
+
+        // BR04: Phim da ENDED khong duoc xep lich
+        if (movie.getMovieStatus() == MovieStatus.ENDED) {
+            throw ApiException.badRequest("Movie '" + movie.getTitle() + "' has ENDED and cannot be scheduled");
+        }
+        // BR04: Phong khong o trang thai ACTIVE khong duoc xep lich
+        if (room.getRoomStatus() != RoomStatus.ACTIVE) {
+            throw ApiException.badRequest("Room '" + room.getRoomName() + "' is not ACTIVE");
+        }
+        // Gio chieu phai o tuong lai
+        if (!request.startTime().isAfter(LocalDateTime.now())) {
+            throw ApiException.badRequest("Start time must be in the future");
+        }
+        LocalDateTime endTime = request.startTime().plusMinutes(movie.getDurationMinutes());
+
+        // BR05: Kiem tra trung gio chieu trong cung phong [s1, e1) giao [s2, e2) khi s1 < e2 AND e1 > s2
+        long overlaps = showtimeRepository
+                .countByRoomIdAndShowtimeStatusAndStartTimeLessThanAndEndTimeGreaterThanAndShowtimeIdNot(
+                        room.getRoomId(), ShowtimeStatus.SCHEDULED, endTime, request.startTime(), excludeId);
+        if (overlaps > 0) {
+            throw ApiException.conflict("Room '" + room.getRoomName() + "' already has a showtime between "
+                    + request.startTime() + " and " + endTime);
+        }
+
+        showtime.setMovieId(movie.getMovieId());
+        showtime.setRoomId(room.getRoomId());
+        showtime.setStartTime(request.startTime());
+        showtime.setEndTime(endTime);
+        showtime.setTicketPrice(request.ticketPrice());
+        return ShowtimeResponse.from(showtimeRepository.save(showtime), movie, room);
+    }
+
+    private List<ShowtimeResponse> toResponses(List<Showtime> showtimes) {
         Map<String, Movie> movies = movieRepository
                 .findAllById(showtimes.stream().map(Showtime::getMovieId).distinct().toList())
                 .stream().collect(Collectors.toMap(Movie::getMovieId, Function.identity()));
