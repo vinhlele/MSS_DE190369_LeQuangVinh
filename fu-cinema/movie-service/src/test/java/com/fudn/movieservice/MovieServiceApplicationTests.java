@@ -1,13 +1,18 @@
 package com.fudn.movieservice;
 
 import com.fudn.movieservice.controller.MovieController;
+import com.fudn.movieservice.controller.ShowtimeController;
 import com.fudn.movieservice.dto.MovieRequest;
 import com.fudn.movieservice.dto.MovieResponse;
+import com.fudn.movieservice.dto.ShowtimeRequest;
+import com.fudn.movieservice.dto.ShowtimeResponse;
 import com.fudn.movieservice.exception.ApiException;
 import com.fudn.movieservice.exception.GlobalExceptionHandler;
 import com.fudn.movieservice.model.AgeRating;
 import com.fudn.movieservice.model.MovieStatus;
+import com.fudn.movieservice.model.ShowtimeStatus;
 import com.fudn.movieservice.service.MovieService;
+import com.fudn.movieservice.service.ShowtimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,7 +22,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -34,11 +41,14 @@ class MovieServiceApplicationTests {
     @Mock
     private MovieService movieService;
 
+    @Mock
+    private ShowtimeService showtimeService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new MovieController(movieService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new MovieController(movieService), new ShowtimeController(showtimeService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -46,6 +56,8 @@ class MovieServiceApplicationTests {
     @Test
     void contextLoads() {
     }
+
+    // ================= MOVIE =================
 
     @Test
     void search_shouldReturnMovieList() throws Exception {
@@ -148,6 +160,94 @@ class MovieServiceApplicationTests {
         doNothing().when(movieService).delete("m1");
 
         mockMvc.perform(delete("/api/movies/m1"))
+                .andExpect(status().isNoContent());
+    }
+
+    // ================= SHOWTIME =================
+
+    @Test
+    void searchShowtimes_shouldReturnList() throws Exception {
+        ShowtimeResponse response = new ShowtimeResponse("s1", "m1", "Galaxy Quest", "r1", "Room 01",
+                8, 10, LocalDateTime.of(2026, 12, 20, 19, 0), LocalDateTime.of(2026, 12, 20, 21, 5),
+                BigDecimal.valueOf(95000), ShowtimeStatus.SCHEDULED);
+        when(showtimeService.search(eq("m1"), eq(LocalDate.of(2026, 12, 20))))
+                .thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/showtimes")
+                        .param("movieId", "m1")
+                        .param("date", "2026-12-20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].showtimeId").value("s1"))
+                .andExpect(jsonPath("$[0].movieTitle").value("Galaxy Quest"))
+                .andExpect(jsonPath("$[0].roomName").value("Room 01"));
+    }
+
+    @Test
+    void getShowtimeById_shouldReturnShowtime() throws Exception {
+        ShowtimeResponse response = new ShowtimeResponse("s1", "m1", "Galaxy Quest", "r1", "Room 01",
+                8, 10, LocalDateTime.of(2026, 12, 20, 19, 0), LocalDateTime.of(2026, 12, 20, 21, 5),
+                BigDecimal.valueOf(95000), ShowtimeStatus.SCHEDULED);
+        when(showtimeService.getById("s1")).thenReturn(response);
+
+        mockMvc.perform(get("/api/showtimes/s1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.showtimeId").value("s1"))
+                .andExpect(jsonPath("$.roomName").value("Room 01"));
+    }
+
+    @Test
+    void createShowtime_validRequest_shouldReturn201() throws Exception {
+        ShowtimeResponse response = new ShowtimeResponse("s1", "m1", "Galaxy Quest", "r1", "Room 01",
+                8, 10, LocalDateTime.of(2026, 12, 20, 19, 0), LocalDateTime.of(2026, 12, 20, 21, 5),
+                BigDecimal.valueOf(95000), ShowtimeStatus.SCHEDULED);
+        when(showtimeService.create(any(ShowtimeRequest.class))).thenReturn(response);
+
+        String json = """
+                {
+                    "movieId": "m1",
+                    "roomId": "r1",
+                    "startTime": "2026-12-20T19:00:00",
+                    "ticketPrice": 95000
+                }
+                """;
+
+        mockMvc.perform(post("/api/showtimes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.showtimeId").value("s1"))
+                .andExpect(jsonPath("$.ticketPrice").value(95000));
+    }
+
+    @Test
+    void updateShowtime_validRequest_shouldReturn200() throws Exception {
+        ShowtimeResponse response = new ShowtimeResponse("s1", "m1", "Galaxy Quest", "r1", "Room 01",
+                8, 10, LocalDateTime.of(2026, 12, 20, 20, 0), LocalDateTime.of(2026, 12, 20, 22, 5),
+                BigDecimal.valueOf(100000), ShowtimeStatus.SCHEDULED);
+        when(showtimeService.update(eq("s1"), any(ShowtimeRequest.class))).thenReturn(response);
+
+        String json = """
+                {
+                    "movieId": "m1",
+                    "roomId": "r1",
+                    "startTime": "2026-12-20T20:00:00",
+                    "ticketPrice": 100000
+                }
+                """;
+
+        mockMvc.perform(put("/api/showtimes/s1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.showtimeId").value("s1"))
+                .andExpect(jsonPath("$.ticketPrice").value(100000));
+    }
+
+    @Test
+    void cancelShowtime_shouldReturn204() throws Exception {
+        doNothing().when(showtimeService).cancel("s1");
+
+        mockMvc.perform(delete("/api/showtimes/s1"))
                 .andExpect(status().isNoContent());
     }
 }
