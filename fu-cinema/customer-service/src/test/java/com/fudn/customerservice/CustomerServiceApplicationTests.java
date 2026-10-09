@@ -38,6 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -553,5 +554,78 @@ class CustomerServiceApplicationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isNoContent());
+    }
+
+    // TODO 3.3 - Admin Customer Endpoints Tests
+    @Test
+    void customerController_adminSearch_success() throws Exception {
+        Customer c1 = Customer.builder().customerId(1L).customerName("An").email("an@gmail.com").customerStatus(CustomerStatus.ACTIVE).build();
+        when(customerRepository.findByCustomerNameContainingIgnoreCaseOrEmailContainingIgnoreCaseOrderByCustomerIdAsc("gmail", "gmail"))
+                .thenReturn(List.of(c1));
+
+        mockMvc.perform(get("/api/customers").param("keyword", "gmail"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].customerId").value(1))
+                .andExpect(jsonPath("$[0].email").value("an@gmail.com"));
+    }
+
+    @Test
+    void customerController_adminGetById_success() throws Exception {
+        Customer c1 = Customer.builder().customerId(1L).customerName("An").email("an@gmail.com").customerStatus(CustomerStatus.ACTIVE).build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(c1));
+
+        mockMvc.perform(get("/api/customers/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.customerId").value(1))
+                .andExpect(jsonPath("$.customerName").value("An"));
+    }
+
+    @Test
+    void customerController_adminCreate_success() throws Exception {
+        when(customerRepository.existsByEmailIgnoreCase("new@gmail.com")).thenReturn(false);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> {
+            Customer c = invocation.getArgument(0);
+            c.setCustomerId(10L);
+            return c;
+        });
+
+        String json = "{\"customerName\":\"New User\",\"telephone\":\"0905111222\",\"email\":\"new@gmail.com\",\"customerBirthday\":\"2000-01-01\",\"customerStatus\":\"ACTIVE\",\"password\":\"secret123\"}";
+        mockMvc.perform(post("/api/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.customerId").value(10))
+                .andExpect(jsonPath("$.customerName").value("New User"))
+                .andExpect(jsonPath("$.email").value("new@gmail.com"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void customerController_adminUpdate_success() throws Exception {
+        Customer existing = Customer.builder().customerId(1L).customerName("Old Name").email("old@gmail.com").customerStatus(CustomerStatus.ACTIVE).build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(customerRepository.existsByEmailIgnoreCaseAndCustomerIdNot("updated@gmail.com", 1L)).thenReturn(false);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        String json = "{\"customerName\":\"Updated Name\",\"telephone\":\"0905999888\",\"email\":\"updated@gmail.com\",\"customerBirthday\":\"2000-01-01\",\"customerStatus\":\"ACTIVE\"}";
+        mockMvc.perform(put("/api/customers/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.customerId").value(1))
+                .andExpect(jsonPath("$.customerName").value("Updated Name"))
+                .andExpect(jsonPath("$.email").value("updated@gmail.com"));
+    }
+
+    @Test
+    void customerController_adminDelete_success() throws Exception {
+        Customer existing = Customer.builder().customerId(1L).customerName("Name").email("test@gmail.com").customerStatus(CustomerStatus.ACTIVE).build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        mockMvc.perform(delete("/api/customers/1"))
+                .andExpect(status().isNoContent());
+
+        assertEquals(CustomerStatus.INACTIVE, existing.getCustomerStatus());
     }
 }
