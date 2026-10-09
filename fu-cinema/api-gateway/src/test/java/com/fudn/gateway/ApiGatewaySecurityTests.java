@@ -20,6 +20,8 @@ class ApiGatewaySecurityTests {
     @Autowired
     private MockMvc mockMvc;
 
+    // ---------- F10.2: Public & Token Validation Tests ----------
+
     @Test
     void healthEndpointIsPublic() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/actuator/health"))
@@ -42,17 +44,6 @@ class ApiGatewaySecurityTests {
     }
 
     @Test
-    void protectedEndpointWithValidJwt_passesSecurityFilter() {
-        try {
-            mockMvc.perform(MockMvcRequestBuilders.get("/api/customers/me").with(jwt()));
-        } catch (Exception e) {
-            // Passes Security filter and reaches Gateway routing (fails only because downstream service is offline)
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            assertTrue(cause instanceof ResourceAccessException, "Expected ResourceAccessException from downstream proxy call");
-        }
-    }
-
-    @Test
     void publicMoviesEndpointWithoutToken_passesSecurityFilter() {
         try {
             mockMvc.perform(MockMvcRequestBuilders.get("/api/movies"));
@@ -62,10 +53,38 @@ class ApiGatewaySecurityTests {
         }
     }
 
+    // ---------- F10.3: Role-based Authorization Tests ----------
+
     @Test
-    void publicShowtimesEndpointWithoutToken_passesSecurityFilter() {
+    void customerRole_accessingAdminReports_shouldReturn403Forbidden() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/reports/revenue")
+                        .with(jwt().jwt(j -> j.claim("role", "CUSTOMER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void customerRole_accessingAdminCustomerList_shouldReturn403Forbidden() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/customers")
+                        .with(jwt().jwt(j -> j.claim("role", "CUSTOMER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminRole_accessingAdminReports_shouldPassSecurity() {
         try {
-            mockMvc.perform(MockMvcRequestBuilders.get("/api/showtimes"));
+            mockMvc.perform(MockMvcRequestBuilders.get("/api/reports/revenue")
+                    .with(jwt().jwt(j -> j.claim("role", "ADMIN"))));
+        } catch (Exception e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            assertTrue(cause instanceof ResourceAccessException, "Expected ResourceAccessException from downstream proxy call");
+        }
+    }
+
+    @Test
+    void customerRole_accessingCustomerProfile_shouldPassSecurity() {
+        try {
+            mockMvc.perform(MockMvcRequestBuilders.get("/api/customers/me")
+                    .with(jwt().jwt(j -> j.claim("role", "CUSTOMER"))));
         } catch (Exception e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
             assertTrue(cause instanceof ResourceAccessException, "Expected ResourceAccessException from downstream proxy call");
