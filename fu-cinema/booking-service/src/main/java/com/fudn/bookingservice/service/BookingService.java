@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -30,8 +31,28 @@ public class BookingService {
     private final BookingDetailRepository bookingDetailRepository;
     private final MovieClient movieClient;
 
+    // ======================= F7: SEAT MAP =======================
+
+    // TODO 7.6
+    public SeatMapResponse getSeatMap(String showtimeId) {
+        ShowtimeResponse st = fetchShowtime(showtimeId);
+        List<String> booked = bookingDetailRepository
+                .findSeatCodesByShowtime(showtimeId, BookingStatus.CONFIRMED)
+                .stream().sorted().toList();
+        int totalSeats = st.seatRows() * st.seatsPerRow();
+        return new SeatMapResponse(st.showtimeId(), st.movieTitle(), st.roomName(), st.startTime(),
+                st.seatRows(), st.seatsPerRow(), totalSeats, totalSeats - booked.size(), booked);
+    }
+
+    // ======================= F7: CREATE BOOKING =======================
+
+    // TODO 7.5, 7.6
     @Transactional
     public BookingResponse create(Long customerId, CreateBookingRequest request) {
+        Map<String, ShowtimeResponse> showtimeCache = new HashMap<>();   // moi showtime chi goi Feign 1 lan
+        Map<String, Set<String>> bookedSeatCache = new HashMap<>();
+        Set<String> requestedSeats = new HashSet<>();
+
         Booking booking = new Booking();
         booking.setCustomerId(customerId);
         booking.setBookingDate(LocalDateTime.now());
@@ -39,11 +60,29 @@ public class BookingService {
         BigDecimal total = BigDecimal.ZERO;
 
         for (BookingItemRequest item : request.items()) {
-            ShowtimeResponse st = fetchShowtime(item.showtimeId());
+            String seat = item.seatCode();
 
+            // BR07: khong trung ghe trong cung request
+            if (!requestedSeats.add(item.showtimeId() + "#" + seat)) {
+                throw ApiException.badRequest("Duplicate seat " + seat + " of showtime " + item.showtimeId() + " in request");
+            }
+
+            // BR08 + BR14: goi movie-service qua OpenFeign
+            ShowtimeResponse st = showtimeCache.computeIfAbsent(item.showtimeId(), this::fetchShowtime);
+            validateShowtime(st);
+            validateSeat(seat, st);
+
+            // BR09: ghe da ban cho booking CONFIRMED khac?
+            Set<String> taken = bookedSeatCache.computeIfAbsent(st.showtimeId(),
+                    id -> new HashSet<>(bookingDetailRepository.findSeatCodesByShowtime(id, BookingStatus.CONFIRMED)));
+            if (taken.contains(seat)) {
+                throw ApiException.conflict("Seat " + seat + " of showtime " + st.showtimeId() + " is already booked");
+            }
+
+            // BR10: gia lay tu server + snapshot thong tin phim
             BookingDetail detail = new BookingDetail();
             detail.setShowtimeId(st.showtimeId());
-            detail.setSeatCode(item.seatCode());
+            detail.setSeatCode(seat);
             detail.setPrice(st.ticketPrice());
             detail.setMovieId(st.movieId());
             detail.setMovieTitle(st.movieTitle());
@@ -55,7 +94,7 @@ public class BookingService {
         }
 
         booking.setTotalPrice(total);
-        Booking saved = bookingRepository.save(booking);
+        Booking saved = bookingRepository.save(booking);           // cascade luu luon details
         log.info("Booking {} created for customer {} with {} ticket(s), total {}",
                 saved.getBookingId(), customerId, saved.getDetails().size(), total);
         return BookingResponse.from(saved);
@@ -65,6 +104,8 @@ public class BookingService {
         return BookingResponse.from(findAccessible(bookingId, userId, role));
     }
 
+    // ======================= HELPER =======================
+
     public ShowtimeResponse fetchShowtime(String showtimeId) {
         try {
             return movieClient.getShowtime(showtimeId);
@@ -73,6 +114,26 @@ public class BookingService {
         } catch (FeignException e) {
             log.error("Cannot call movie-service: {}", e.getMessage());
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Movie service is unavailable. Please try again later.");
+        }
+    }
+
+    private void validateShowtime(ShowtimeResponse st) {
+        if (!"SCHEDULED".equals(st.showtimeStatus())) {
+            throw ApiException.badRequest("Showtime " + st.showtimeId() + " is not available (" + st.showtimeStatus() + ")");
+        }
+        if (!st.startTime().isAfter(LocalDateTime.now())) {
+            throw ApiException.badRequest("Showtime " + st.showtimeId() + " has already started");
+        }
+    }
+
+    /** Seat "E5": hang E (index 4) < seatRows va so 5 <= seatsPerRow */
+    private void validateSeat(String seat, ShowtimeResponse st) {
+        int rowIndex = seat.charAt(0) - 'A';
+        int number = Integer.parseInt(seat.substring(1));
+        if (rowIndex >= st.seatRows() || number > st.seatsPerRow()) {
+            char lastRow = (char) ('A' + st.seatRows() - 1);
+            throw ApiException.badRequest("Seat " + seat + " does not exist in room " + st.roomName()
+                    + " (rows A-" + lastRow + ", seats 1-" + st.seatsPerRow() + ")");
         }
     }
 
