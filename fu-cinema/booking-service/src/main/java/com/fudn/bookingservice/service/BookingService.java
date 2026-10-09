@@ -100,6 +100,34 @@ public class BookingService {
         return BookingResponse.from(saved);
     }
 
+    // ======================= F8: BOOKING HISTORY & DETAIL =======================
+
+    // TODO 8.2: Lay lich su dat ve cua chinh customer dang dang nhap
+    public List<BookingResponse> getMyBookings(Long customerId) {
+        return bookingRepository.findByCustomerIdOrderByBookingDateDesc(customerId)
+                .stream()
+                .map(BookingResponse::from)
+                .toList();
+    }
+
+    // TODO 8.2: Lay danh sach dat ve (ADMIN xem tat ca hoac loc theo customerId; CUSTOMER chi xem cua minh)
+    public List<BookingResponse> getBookings(Long userId, String role, Long customerId) {
+        if (ROLE_ADMIN.equals(role)) {
+            if (customerId != null) {
+                return bookingRepository.findByCustomerIdOrderByBookingDateDesc(customerId)
+                        .stream()
+                        .map(BookingResponse::from)
+                        .toList();
+            }
+            return bookingRepository.findAllByOrderByBookingDateDesc()
+                    .stream()
+                    .map(BookingResponse::from)
+                    .toList();
+        }
+        return getMyBookings(userId);
+    }
+
+    // TODO 8.2: Xem chi tiet dat ve theo ID voi quyen so huu (ownership enforcement)
     public BookingResponse getById(Long bookingId, Long userId, String role) {
         return BookingResponse.from(findAccessible(bookingId, userId, role));
     }

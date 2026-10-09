@@ -136,6 +136,42 @@ class BookingServiceApplicationTests {
                 .andExpect(jsonPath("$.status").value(400));
     }
 
+    // ---------- TODO 8.2 Tests ----------
+
+    @Test
+    void getMyBookings_success() throws Exception {
+        BookingDetailResponse detail = new BookingDetailResponse("st-001", "mov-01", "Inception", "Room 1",
+                LocalDateTime.of(2026, 12, 1, 10, 0), "C5", new BigDecimal("100000"));
+        BookingResponse response = new BookingResponse(100L, LocalDateTime.now(), 1L,
+                new BigDecimal("100000"), BookingStatus.CONFIRMED, List.of(detail));
+
+        when(bookingService.getMyBookings(1L)).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/bookings/my")
+                        .header("X-User-Id", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].bookingId").value(100))
+                .andExpect(jsonPath("$[0].customerId").value(1));
+    }
+
+    @Test
+    void getBookings_admin_success() throws Exception {
+        BookingDetailResponse detail = new BookingDetailResponse("st-001", "mov-01", "Inception", "Room 1",
+                LocalDateTime.of(2026, 12, 1, 10, 0), "C5", new BigDecimal("100000"));
+        BookingResponse response = new BookingResponse(100L, LocalDateTime.now(), 1L,
+                new BigDecimal("100000"), BookingStatus.CONFIRMED, List.of(detail));
+
+        when(bookingService.getBookings(eq(1L), eq("ADMIN"), isNull())).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/bookings")
+                        .header("X-User-Id", 1L)
+                        .header("X-User-Role", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].bookingId").value(100));
+    }
+
     @Test
     void getById_success() throws Exception {
         BookingDetailResponse detail = new BookingDetailResponse("st-001", "mov-01", "Inception", "Room 1",
@@ -164,7 +200,7 @@ class BookingServiceApplicationTests {
     }
 
     @Test
-    void getById_forbidden_returnsForbidden() throws Exception {
+    void getById_forbidden_otherCustomer_returnsForbidden() throws Exception {
         when(bookingService.getById(eq(100L), eq(2L), isNull()))
                 .thenThrow(ApiException.forbidden("You can only access your own bookings"));
 
