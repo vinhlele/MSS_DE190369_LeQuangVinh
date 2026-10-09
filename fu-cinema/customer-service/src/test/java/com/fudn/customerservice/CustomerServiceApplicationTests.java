@@ -2,6 +2,7 @@ package com.fudn.customerservice;
 
 import com.fudn.customerservice.config.PasswordConfig;
 import com.fudn.customerservice.controller.AuthController;
+import com.fudn.customerservice.controller.CustomerController;
 import com.fudn.customerservice.dto.ChangePasswordRequest;
 import com.fudn.customerservice.dto.CustomerResponse;
 import com.fudn.customerservice.dto.LoginRequest;
@@ -38,7 +39,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -65,7 +68,7 @@ class CustomerServiceApplicationTests {
         customerService = new CustomerService(customerRepository, passwordEncoder);
         ReflectionTestUtils.setField(customerService, "adminEmail", "admin@fucinema.com");
 
-        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(authService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(authService), new CustomerController(customerService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -376,5 +379,88 @@ class CustomerServiceApplicationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void customerController_register_success() throws Exception {
+        when(customerRepository.existsByEmailIgnoreCase("newcust@gmail.com")).thenReturn(false);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> {
+            Customer c = invocation.getArgument(0);
+            c.setCustomerId(99L);
+            return c;
+        });
+
+        String json = "{\"customerName\":\"Nguyen Van New\",\"telephone\":\"0901234567\",\"email\":\"newcust@gmail.com\",\"customerBirthday\":\"2000-01-01\",\"password\":\"password123\"}";
+        mockMvc.perform(post("/api/customers/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.customerId").value(99))
+                .andExpect(jsonPath("$.customerName").value("Nguyen Van New"))
+                .andExpect(jsonPath("$.email").value("newcust@gmail.com"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void customerController_getProfile_success() throws Exception {
+        Customer customer = Customer.builder()
+                .customerId(1L)
+                .customerName("Nguyễn Văn An")
+                .telephone("0905123456")
+                .email("an@gmail.com")
+                .customerBirthday(LocalDate.of(2002, 5, 10))
+                .customerStatus(CustomerStatus.ACTIVE)
+                .password("encoded_pass")
+                .build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+
+        mockMvc.perform(get("/api/customers/me")
+                        .header("X-User-Id", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.customerId").value(1))
+                .andExpect(jsonPath("$.customerName").value("Nguyễn Văn An"))
+                .andExpect(jsonPath("$.email").value("an@gmail.com"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void customerController_updateProfile_success() throws Exception {
+        Customer customer = Customer.builder()
+                .customerId(1L)
+                .customerName("Nguyễn Văn An")
+                .telephone("0905123456")
+                .email("an@gmail.com")
+                .customerBirthday(LocalDate.of(2002, 5, 10))
+                .customerStatus(CustomerStatus.ACTIVE)
+                .password("encoded_pass")
+                .build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        String json = "{\"customerName\":\"Nguyen Van An Updated\",\"telephone\":\"0909999888\",\"customerBirthday\":\"2002-05-10\"}";
+        mockMvc.perform(put("/api/customers/me")
+                        .header("X-User-Id", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.customerName").value("Nguyen Van An Updated"))
+                .andExpect(jsonPath("$.telephone").value("0909999888"));
+    }
+
+    @Test
+    void customerController_changePassword_success() throws Exception {
+        String oldRaw = "oldPass123";
+        Customer customer = Customer.builder()
+                .customerId(1L)
+                .password(passwordEncoder.encode(oldRaw))
+                .build();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+
+        String json = "{\"oldPassword\":\"oldPass123\",\"newPassword\":\"newPass456\"}";
+        mockMvc.perform(put("/api/customers/me/password")
+                        .header("X-User-Id", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isNoContent());
     }
 }
