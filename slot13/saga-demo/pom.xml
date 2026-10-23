@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.mss301</groupId>
+    <artifactId>saga-demo-parent</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>saga-demo-parent</name>
+    <description>Root Aggregator for Saga Demo Services</description>
+
+    <modules>
+        <module>inventory-service</module>
+        <module>payment-service</module>
+        <module>order-service</module>
+    </modules>
+</project>
