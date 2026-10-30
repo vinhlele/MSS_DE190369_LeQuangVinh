@@ -1,0 +1,390 @@
+{
+	"info": {
+		"_postman_id": "mss301-summer2026-pe",
+		"name": "MSS301 Summer 2026 PE - Hotel System",
+		"description": "Postman Collection for MSS301 Practical Exam 2026 Summer (Student: de190369)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "gateway_url",
+			"value": "http://localhost:8080"
+		},
+		{
+			"key": "room_service_url",
+			"value": "http://localhost:8081"
+		},
+		{
+			"key": "reservation_service_url",
+			"value": "http://localhost:8082"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Gateway - Swagger Aggregation",
+			"item": [
+				{
+					"name": "Swagger UI Config (Aggregate)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/v3/api-docs/swagger-config",
+							"host": ["{{gateway_url}}"],
+							"path": ["v3", "api-docs", "swagger-config"]
+						}
+					}
+				},
+				{
+					"name": "Preflight CORS OPTIONS /api/rooms",
+					"request": {
+						"method": "OPTIONS",
+						"header": [
+							{
+								"key": "Origin",
+								"value": "http://localhost:3000"
+							},
+							{
+								"key": "Access-Control-Request-Method",
+								"value": "POST"
+							}
+						],
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Rooms API (via Gateway :8080)",
+			"item": [
+				{
+					"name": "GET /api/rooms (List with Pagination)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms?page=0&size=10",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms"],
+							"query": [
+								{ "key": "page", "value": "0" },
+								{ "key": "size", "value": "10" }
+							]
+						}
+					}
+				},
+				{
+					"name": "GET /api/rooms (Filter by roomType & status)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms?roomType=SINGLE&status=AVAILABLE",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms"],
+							"query": [
+								{ "key": "roomType", "value": "SINGLE" },
+								{ "key": "status", "value": "AVAILABLE" }
+							]
+						}
+					}
+				},
+				{
+					"name": "GET /api/rooms/{id} (Success - 200)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms/1",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms", "1"]
+						}
+					}
+				},
+				{
+					"name": "GET /api/rooms/{id} (Not Found - 404)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms/999",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms", "999"]
+						}
+					}
+				},
+				{
+					"name": "POST /api/rooms (Create Room - 201)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"roomNumber\": \"601\",\n  \"roomType\": \"DELUXE\",\n  \"pricePerNight\": 220.00,\n  \"capacity\": 4,\n  \"floor\": 6\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms"]
+						}
+					}
+				},
+				{
+					"name": "POST /api/rooms (Duplicate Room Number - 226)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"roomNumber\": \"101\",\n  \"roomType\": \"SINGLE\",\n  \"pricePerNight\": 100.00,\n  \"capacity\": 1,\n  \"floor\": 1\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms"]
+						}
+					}
+				},
+				{
+					"name": "POST /api/rooms (Validation Failure - 406)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"roomNumber\": \"602\",\n  \"roomType\": \"VIP_INVALID\",\n  \"pricePerNight\": -10.00,\n  \"capacity\": 20,\n  \"floor\": 0\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms"]
+						}
+					}
+				},
+				{
+					"name": "PUT /api/rooms/{id} (Partial Update - 200)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"pricePerNight\": 75.00\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms/1",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms", "1"]
+						}
+					}
+				},
+				{
+					"name": "DELETE /api/rooms/{id} (Soft Delete to MAINTENANCE - 200)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/rooms/1",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "rooms", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Reservations API (via Gateway :8080)",
+			"item": [
+				{
+					"name": "GET /api/reservations (List with Pagination)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/reservations?page=0&size=10",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "reservations"],
+							"query": [
+								{ "key": "page", "value": "0" },
+								{ "key": "size", "value": "10" }
+							]
+						}
+					}
+				},
+				{
+					"name": "GET /api/reservations/{id} (Detail with nested Room - 200)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/reservations/3",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "reservations", "3"]
+						}
+					}
+				},
+				{
+					"name": "POST /api/reservations (Create Reservation - 201)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"guestName\": \"Le Quang Vinh\",\n  \"guestEmail\": \"vinh@example.com\",\n  \"guestPhone\": \"0901234567\",\n  \"checkInDate\": \"10/12/2026\",\n  \"checkOutDate\": \"14/12/2026\",\n  \"numberOfGuests\": 2,\n  \"roomId\": 2\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/reservations",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "reservations"]
+						}
+					}
+				},
+				{
+					"name": "POST /api/reservations (Date Error - 406)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"guestName\": \"Test Dates\",\n  \"guestEmail\": \"test@example.com\",\n  \"guestPhone\": \"0900000000\",\n  \"checkInDate\": \"15/12/2026\",\n  \"checkOutDate\": \"10/12/2026\",\n  \"numberOfGuests\": 1,\n  \"roomId\": 2\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/reservations",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "reservations"]
+						}
+					}
+				},
+				{
+					"name": "POST /api/reservations (Room Not Found - 404)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"guestName\": \"Test Missing Room\",\n  \"guestEmail\": \"test@example.com\",\n  \"guestPhone\": \"0900000000\",\n  \"checkInDate\": \"10/12/2026\",\n  \"checkOutDate\": \"12/12/2026\",\n  \"numberOfGuests\": 1,\n  \"roomId\": 999\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/reservations",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "reservations"]
+						}
+					}
+				},
+				{
+					"name": "POST /api/reservations (Room In MAINTENANCE - 400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"guestName\": \"Test Maint\",\n  \"guestEmail\": \"test@example.com\",\n  \"guestPhone\": \"0900000000\",\n  \"checkInDate\": \"10/12/2026\",\n  \"checkOutDate\": \"12/12/2026\",\n  \"numberOfGuests\": 1,\n  \"roomId\": 4\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/reservations",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "reservations"]
+						}
+					}
+				},
+				{
+					"name": "POST /api/reservations (Excessive Guests - 406)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"guestName\": \"Test Cap\",\n  \"guestEmail\": \"test@example.com\",\n  \"guestPhone\": \"0900000000\",\n  \"checkInDate\": \"10/12/2026\",\n  \"checkOutDate\": \"12/12/2026\",\n  \"numberOfGuests\": 5,\n  \"roomId\": 2\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/reservations",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "reservations"]
+						}
+					}
+				},
+				{
+					"name": "PUT /api/reservations/{id} (Partial Update Dates - 200)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"checkOutDate\": \"15/12/2026\"\n}"
+						},
+						"url": {
+							"raw": "{{gateway_url}}/api/reservations/3",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "reservations", "3"]
+						}
+					}
+				},
+				{
+					"name": "DELETE /api/reservations/{id} (Soft Cancel - 200)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{gateway_url}}/api/reservations/3",
+							"host": ["{{gateway_url}}"],
+							"path": ["api", "reservations", "3"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

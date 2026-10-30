@@ -1,0 +1,197 @@
+### =========================================================================
+### MSS301 Summer 2026 Practical Exam - API Test Suite
+### Base URL: http://localhost:8080 (HotelGateway entry point)
+### =========================================================================
+
+@gateway = http://localhost:8080
+@roomService = http://localhost:8081
+@reservationService = http://localhost:8082
+
+### -------------------------------------------------------------------------
+### 1. GATEWAY & SWAGGER CONFIG
+### -------------------------------------------------------------------------
+
+### 1.1 Swagger Config Aggregation on Gateway
+GET {{gateway}}/v3/api-docs/swagger-config
+
+### 1.2 Preflight CORS OPTIONS for Rooms
+OPTIONS {{gateway}}/api/rooms
+Origin: http://localhost:3000
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: Content-Type
+
+### 1.3 Preflight CORS OPTIONS for Reservations
+OPTIONS {{gateway}}/api/reservations
+Origin: http://localhost:3000
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: Content-Type
+
+
+### -------------------------------------------------------------------------
+### 2. ROOM SERVICE (Via Gateway port 8080)
+### -------------------------------------------------------------------------
+
+### 2.1 Get Rooms list with pagination (Default page=0, size=10)
+GET {{gateway}}/api/rooms?page=0&size=10
+
+### 2.2 Filter Rooms by roomType and status
+GET {{gateway}}/api/rooms?roomType=SINGLE&status=AVAILABLE
+
+### 2.3 Get Room by ID (Success - HTTP 200)
+GET {{gateway}}/api/rooms/1
+
+### 2.4 Get Room by ID (Not Found - HTTP 404)
+GET {{gateway}}/api/rooms/999
+
+### 2.5 Create new Room (Success - HTTP 201, default status AVAILABLE)
+POST {{gateway}}/api/rooms
+Content-Type: application/json
+
+{
+  "roomNumber": "701",
+  "roomType": "SUITE",
+  "pricePerNight": 175.00,
+  "capacity": 4,
+  "floor": 7
+}
+
+### 2.6 Create Room with Duplicate roomNumber (HTTP 226 / status 3)
+POST {{gateway}}/api/rooms
+Content-Type: application/json
+
+{
+  "roomNumber": "101",
+  "roomType": "SINGLE",
+  "pricePerNight": 100.00,
+  "capacity": 1,
+  "floor": 1
+}
+
+### 2.7 Create Room with Validation Failure (HTTP 406 / status 2)
+POST {{gateway}}/api/rooms
+Content-Type: application/json
+
+{
+  "roomNumber": "702",
+  "roomType": "INVALID_TYPE",
+  "pricePerNight": -20.00,
+  "capacity": 15,
+  "floor": 0
+}
+
+### 2.8 Partial update Room price (HTTP 200 / status 1)
+PUT {{gateway}}/api/rooms/1
+Content-Type: application/json
+
+{
+  "pricePerNight": 70.00
+}
+
+### 2.9 Partial update Room with duplicate roomNumber (HTTP 226 / status 3)
+PUT {{gateway}}/api/rooms/1
+Content-Type: application/json
+
+{
+  "roomNumber": "102"
+}
+
+### 2.10 Soft delete Room (Set status to MAINTENANCE - HTTP 200 / status 1)
+DELETE {{gateway}}/api/rooms/1
+
+
+### -------------------------------------------------------------------------
+### 3. RESERVATION SERVICE (Via Gateway port 8080)
+### -------------------------------------------------------------------------
+
+### 3.1 Get Reservations list (Page 0, Size 10)
+GET {{gateway}}/api/reservations?page=0&size=10
+
+### 3.2 Filter Reservations by guestName (Partial match)
+GET {{gateway}}/api/reservations?guestName=Vinh
+
+### 3.3 Filter Reservations by status
+GET {{gateway}}/api/reservations?status=CONFIRMED
+
+### 3.4 Get Reservation Detail by ID (With nested RoomDTO - HTTP 200)
+GET {{gateway}}/api/reservations/3
+
+### 3.5 Create Reservation (Success - HTTP 201, auto totalAmount = price x nights)
+POST {{gateway}}/api/reservations
+Content-Type: application/json
+
+{
+  "guestName": "Le Quang Vinh",
+  "guestEmail": "vinh@example.com",
+  "guestPhone": "0901234567",
+  "checkInDate": "20/12/2026",
+  "checkOutDate": "23/12/2026",
+  "numberOfGuests": 2,
+  "roomId": 2
+}
+
+### 3.6 Create Reservation with checkOutDate <= checkInDate (HTTP 406 / status 2)
+POST {{gateway}}/api/reservations
+Content-Type: application/json
+
+{
+  "guestName": "Test Error Dates",
+  "guestEmail": "test@example.com",
+  "guestPhone": "0900000000",
+  "checkInDate": "25/12/2026",
+  "checkOutDate": "20/12/2026",
+  "numberOfGuests": 1,
+  "roomId": 2
+}
+
+### 3.7 Create Reservation with non-existent roomId (HTTP 404 / status 4)
+POST {{gateway}}/api/reservations
+Content-Type: application/json
+
+{
+  "guestName": "Test NonExistent Room",
+  "guestEmail": "test@example.com",
+  "guestPhone": "0900000000",
+  "checkInDate": "20/12/2026",
+  "checkOutDate": "23/12/2026",
+  "numberOfGuests": 1,
+  "roomId": 999
+}
+
+### 3.8 Create Reservation for room in MAINTENANCE (HTTP 400 / status 5)
+POST {{gateway}}/api/reservations
+Content-Type: application/json
+
+{
+  "guestName": "Test Maint Room",
+  "guestEmail": "test@example.com",
+  "guestPhone": "0900000000",
+  "checkInDate": "20/12/2026",
+  "checkOutDate": "23/12/2026",
+  "numberOfGuests": 1,
+  "roomId": 4
+}
+
+### 3.9 Create Reservation with numberOfGuests > capacity (HTTP 406 / status 2)
+POST {{gateway}}/api/reservations
+Content-Type: application/json
+
+{
+  "guestName": "Test Over Capacity",
+  "guestEmail": "test@example.com",
+  "guestPhone": "0900000000",
+  "checkInDate": "20/12/2026",
+  "checkOutDate": "23/12/2026",
+  "numberOfGuests": 6,
+  "roomId": 2
+}
+
+### 3.10 Partial update Reservation dates & recalculate amount (HTTP 200 / status 1)
+PUT {{gateway}}/api/reservations/3
+Content-Type: application/json
+
+{
+  "checkOutDate": "24/11/2026"
+}
+
+### 3.11 Soft cancel Reservation (Set status to CANCELLED - HTTP 200 / status 1)
+DELETE {{gateway}}/api/reservations/3

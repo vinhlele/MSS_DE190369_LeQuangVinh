@@ -1,0 +1,13 @@
+# Maven target
+**/target/
+target/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.ipr
+*.iws
+
+# Logs
+*.log
